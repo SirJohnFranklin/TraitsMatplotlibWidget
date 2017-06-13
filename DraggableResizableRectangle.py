@@ -251,6 +251,7 @@ class AnnotatedLine(HasTraits):
         return self.pos_0, self.pos_1
 
     def remove(self):
+        self.disconnect()
         self.line.remove()
         self.annotext.remove()
         del self
@@ -497,6 +498,7 @@ class AnnotatedRectangle(HasTraits):
         self.rectReleased += 1
 
     def remove(self):
+        self.disconnect()
         self.rectangle.remove()
         self.annotext.remove()
         del self

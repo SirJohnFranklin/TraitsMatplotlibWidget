@@ -340,9 +340,9 @@ class MinimalFigure(HasTraits):
     def _save_fig_btn_fired(self):
         dlg = FileDialog(action='save as')
         if dlg.open() == OK:
-            self.savefig(dlg.path + ".png", dpi=300)
-            self.savefig(dlg.path + ".eps")
-            self.savefig(dlg.path + ".pdf")
+            self.savefig(dlg.directory + '/' + dlg.filename + ".png", dpi=300)
+            self.savefig(dlg.directory  + '/' + dlg.filename + ".eps")
+            self.savefig(dlg.directory  + '/' + dlg.filename + ".pdf")
             # cPickle.dump(self, open("dlg.filename" + ".pkl", "wb"))
 
     def savefig(self, *args, **kwargs):
@@ -832,7 +832,7 @@ class BasicFigure(MinimalFigure):
             barlinecols[1].set_segments(zip(zip(x, y - yerr), zip(x, y + yerr)))
 
 
-    def plot(self, x, y, ax=0, **kwargs):
+    def plot(self, x, y=None, ax=0, **kwargs):
         """ Additional (to normal matplotlib plot method) kwargs:
                 - (bool) nodraw     If True, will not draw canvas
                 - (str) fmt         like in matplotlib errorbar(), but it is stupid to use it only in one function
@@ -845,6 +845,10 @@ class BasicFigure(MinimalFigure):
         if len(x) == 0:
             print(self.__class__.__name__, "Length of x array is 0.")
             return
+
+        if y is None:
+            y = x
+            x = np.linspace(1,np.shape(y)[0]+1,num =np.shape(y)[0])
 
         if len(x) > self.mask_length:
             x = self._mask_data(x)
