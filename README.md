@@ -4,7 +4,7 @@ Matplotlib widget for Traits (http://code.enthought.com/projects/traits/)
 This widget allows you to integrate matplotlib in your traits program in an efficent way. 
 See the examples, how to use the plot, errorbar, imshow, blitting, plotting with multiple axes and integrating matplotlib patches.
 
-Features:
+## Features:
 - fast plotting, imshow, errorbar automatic updating of data in traits GUI for python 2.7 & python 3.6
 - copy data shown in plot to clipboard in linux & windows
 - automatic masking of data before matplotlib freezes (can be turned off)
