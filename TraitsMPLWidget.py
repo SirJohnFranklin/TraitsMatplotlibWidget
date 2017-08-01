@@ -26,6 +26,12 @@ elif mpl.get_backend() == "Qt4Agg":
 else:
     print("TraitsMPLWidget: Could not find Qt4 oder Qt5. Don't know if I'm working.")
 
+try:
+    import win32clipboard
+    print("Using win32clipboard")
+except:
+    import pyperclip
+    print("Using Linux clipboard")
 
 __author__ = 'd.wilson'
 
