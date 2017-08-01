@@ -1,15 +1,3 @@
-from __future__ import division, print_function
-from pyface.qt import QtGui, QtCore
-
-try:
-    import win32clipboard
-    print("Using win32clipboard")
-except:
-    import pyperclip
-    print("Using Linux clipboard")
-
-import matplotlib as mpl
-mpl.use('Qt4Agg')
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -18,18 +6,29 @@ from traitsui.qt4.basic_editor_factory import BasicEditorFactory
 from traits.api import Instance, HasTraits, Int, Str, Float, List, Array, Bool, Tuple, Button, Dict, Enum, Range, on_trait_change
 from traitsui.api import Handler, View, Item, UItem, CheckListEditor, HGroup, VGroup, Include
 from pyface.api import FileDialog, OK
+from pyface.qt import QtGui, QtCore
+from scipy import ndimage
 
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+import matplotlib as mpl
+
 from matplotlib.colors import LogNorm
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT
 from matplotlib.widgets import RectangleSelector, SpanSelector
 from DraggableResizableRectangle import DraggableResizeableRectangle, AnnotatedRectangle, AnnotatedLine, DraggableResizeableLine
 
-import cPickle, wx
+import pickle, wx
+
+if mpl.get_backend() == "Qt5Agg":
+    from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+elif mpl.get_backend() == "Qt4Agg":
+    from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+else:
+    print("TraitsMPLWidget: Could not find Qt4 oder Qt5. Don't know if I'm working.")
 
 
 __author__ = 'd.wilson'
+
 
 app = wx.App(False)
 DISPLAY_SIZE = wx.GetDisplaySize()
@@ -250,7 +249,7 @@ class MinimalFigure(HasTraits):
         y = line.get_ydata()
 
         text = 'x \t y \n'
-        for i in xrange(len(x)):
+        for i in range(len(x)):
             text += str(x[i]) + "\t" + str(y[i]) + "\n"
 
         self.add_to_clip_board(text)
@@ -650,7 +649,7 @@ class BasicFigure(MinimalFigure):
                 vmin = 0.
 
         if not self.autoscale:
-            self.img.set_clim(vmin=vmin,vmax=self.vmax)
+            self.img.set_clim(vmin=vmin, vmax=self.vmax)
             self.draw()
 
     def _vmax_changed(self):
@@ -659,19 +658,19 @@ class BasicFigure(MinimalFigure):
             vmin = 0.
 
         if not self.autoscale:
-            self.img.set_clim(vmin=vmin,vmax=self.vmax)
+            self.img.set_clim(vmin=vmin, vmax=self.vmax)
             self.draw()
 
 
-    def axvline(self,pos, ax=0, **kwargs):
-        self.ax_line(pos,'axvline',ax=ax,**kwargs)
+    def axvline(self, pos, ax=0, **kwargs):
+        self.ax_line(pos, 'axvline', ax=ax, **kwargs)
 
 
-    def axhline(self,pos, ax=0, **kwargs):
-        self.ax_line(pos,'axhline',ax=ax,**kwargs)
+    def axhline(self, pos, ax=0, **kwargs):
+        self.ax_line(pos, 'axhline', ax=ax, **kwargs)
 
 
-    def ax_line(self,pos,func_str, ax=0, **kwargs):
+    def ax_line(self, pos, func_str, ax=0, **kwargs):
         # self.img_bool = False
         fmt, label = self._test_plot_kwargs(kwargs)
 
@@ -794,7 +793,7 @@ class BasicFigure(MinimalFigure):
             print("xerr = ", xerr)
 
             text = 'x \t y \t x_error \t y_error \n'
-            for i in xrange(len(x)):
+            for i in range(len(x)):
                 text += str(x[i]) + "\t" + str(y[i]) + "\t" + str(xerr[i]) + "\t" + str(
                     yerr[i]) + "\n"
         else:
@@ -803,7 +802,7 @@ class BasicFigure(MinimalFigure):
             y = line.get_ydata()
 
             text = 'x \t y \n'
-            for i in xrange(len(x)):
+            for i in range(len(x)):
                 text += str(x[i]) + "\t" + str(y[i]) + "\n"
 
         self.add_to_clip_board(text)
@@ -1075,10 +1074,16 @@ class WidgetFigure(BasicFigure):
     widget_clear_btn = Button('Clear Current Widgets')
 
     drawn_patches = List()
-    drawn_patches_names=List()
+    drawn_patches_names = List()
+    patch_data = Array  # [patch no, 2D Arr]
 
     drawn_lines = List()
-    drawn_lines_names=List()
+    drawn_lines_names= List()
+    drawn_lines_selector = Enum(values='drawn_lines_names')
+
+    line_width = Range(0, 1000, 0, tooltip='average over number of lines in both directions.')
+    line_interpolation_order = Range(0, 5, 1)
+    line_data = Array  # [line no, xvals, yvals]
 
     def _widget_list_default(self):
         w = list()
@@ -1103,11 +1108,80 @@ class WidgetFigure(BasicFigure):
             self._line_selector()
 
         if widget == self.widget_list[1]:
-            self._rec_selector()
+            self._rectangle_selector()
 
     def act_all(self):
         for i in self.drawn_patches: i.connect()
         for i in self.drawn_lines: i.connect()
+
+    @on_trait_change('drawn_lines:lineReleased, drawn_lines:lineUpdated, line_width, line_interpolation_order, img_data[]')
+    def get_line_data(self):
+        line_data = []
+        for line in self.drawn_lines_names:
+            x, y = self.get_widget_line(line).line.get_data()
+
+            len_x = abs(x[1] - x[0])
+            len_y = abs(y[1] - y[0])
+            len_line = np.sqrt(len_x ** 2 + len_y ** 2)
+            x_float = np.linspace(x[0], x[1], len_line)
+            y_float = np.linspace(y[0], y[1], len_line)
+            x, y = x_float.astype(np.int), y_float.astype(np.int)
+
+            x, y = x.astype(np.int), y.astype(np.int)
+
+            data = []
+            for i in range(-self.line_width, self.line_width + 1):
+                n1, n2 = self.get_normal(x[0], x[1], y[0], y[1])
+                n1 = int(n1)
+                n2 = int(n2)
+
+                zi = ndimage.map_coordinates(self.img_data, np.vstack((y_float+n2*i, x_float+n1*i)),
+                                             order=self.line_interpolation_order)
+
+                data.append(zi)
+
+            line_cut_mean = np.mean(data, axis=0)
+            line_data.append([range(0, line_cut_mean.shape[0]), line_cut_mean])
+
+        self.line_data = np.array(line_data)
+
+    @staticmethod
+    def get_normal(x1, x2, y1, y2):
+        """
+        calculates the normalized normal vector to the straight line defined by x1, x2, y1, y2
+
+        thx Denis!
+
+        :param x1: float
+        :param x2: float
+        :param y1: float
+        :param y2: float
+        :return: normalized normal vector with one component = 1 and one component < 1
+        """
+        delta_x = float(x1-x2)
+        delta_y = float(y1-y2)
+        if delta_y != 0:
+            n1 = 1.0
+            n2 = -delta_x/delta_y
+            if abs(n2) > 1.0:
+                n1 = n1/n2
+                n2 = 1.0
+        else:
+            n1 = 0.0
+            n2 = 1.0
+        return n1, n2
+
+    @on_trait_change('line_width')
+    def _update_line_width(self):
+        if self.line_selector is None:
+            line = 'line 0'
+        else:
+            line = self.get_widget_line(self.line_selector)
+
+        self.get_widget_line(line).drl.line.set_linewidth(2 * self.line_width + 1)  # how to avoid this?!
+        self.get_widget_line(line).drl.line.set_alpha((np.exp(-self.line_width / 20)))  # exponentially decreasing alpha
+        self.draw()
+
 
     def _line_selector(self):
         try:
@@ -1122,7 +1196,7 @@ class WidgetFigure(BasicFigure):
         DraggableResizeableLine.lock = None
         self.ls = RectangleSelector(self.axes_selector, self.line_selector_func, drawtype='line', useblit=True, button=[3])
 
-    def line_selector_func(self,eclick,erelease,cmap=mpl.cm.jet):
+    def line_selector_func(self, eclick, erelease, cmap=mpl.cm.jet):
         print(self.__class__.__name__, "Line Selector:")
         print(self.__class__.__name__, "eclick: {} \n erelease: {}".format(eclick, erelease))
         print()
@@ -1161,7 +1235,27 @@ class WidgetFigure(BasicFigure):
 
         self.canvas.draw()
 
-    def _rec_selector(self):
+    @on_trait_change('drawn_patches:rectUpdated')
+    def calculate_picture_region_sum(self):
+        data = []
+        for p in self.drawn_patches:
+            x1, y1 = p.rectangle.get_xy()
+            x2 = x1 + p.rectangle.get_width()
+            y2 = y1 + p.rectangle.get_height()
+
+            if p.rectangle.get_width() < 0:
+                x2, x1 = x1, x2
+            if p.rectangle.get_height() < 0:
+                y2, y1 = y1, y2
+            if p.rectangle.get_width() == 0 or p.rectangle.get_height() == 0:
+                print('Zero Patch dimension')
+
+            # data & extent
+            data.append([self.img_data[int(y1):int(y2),int(x1):int(x2)], [int(x1), int(x2), int(y1), int(y2)]])
+
+        self.patch_data = np.array(data)
+
+    def _rectangle_selector(self):
         try:
             self.ls.disconnect_events()
             DraggableResizeableLine.lock = True
@@ -1209,7 +1303,6 @@ class WidgetFigure(BasicFigure):
                 break
         return patch
 
-
     def clear_patches(self):
         if len(self.drawn_patches) != 0:
             print(self.__class__.__name__, ": Clearing selection patches")
@@ -1227,28 +1320,30 @@ class WidgetFigure(BasicFigure):
         self.clear_patches()
         self.clear_lines()
 
-
     def options_group(self):
         g = HGroup(
-            UItem('options_btn'),
-            UItem('clear_btn'),
-            UItem('line_selector', visible_when='not img_bool'),
-            UItem('copy_data_btn', visible_when='not img_bool'),
-            HGroup(
-                VGroup(
-                    HGroup(
-                        Item('normalize_bool', label='normalize'),
-                        Item('log_bool', label='log scale'),
-                        Item('cmap_selector', label='cmap', visible_when='img_bool'),
-                        UItem('image_slider_btn', visible_when='img_bool'),
-                        UItem('save_fig_btn'),
-                    ),
-                    HGroup(
-                        UItem('widget_sel'),
-                        UItem('widget_clear_btn'),
-                    )
-                )
-
+            VGroup(
+                HGroup(
+                    UItem('options_btn'),
+                    UItem('clear_btn'),
+                    UItem('line_selector', visible_when='not img_bool'),
+                    UItem('copy_data_btn', visible_when='not img_bool'),
+                    Item('normalize_bool', label='normalize'),
+                    Item('log_bool', label='log scale'),
+                    Item('cmap_selector', label='cmap', visible_when='img_bool'),
+                    UItem('image_slider_btn', visible_when='img_bool'),
+                    UItem('save_fig_btn'),
+                    label='Basic'
+                ),
+                HGroup(
+                    UItem('widget_sel'),
+                    UItem('widget_clear_btn'),
+                    Item('drawn_lines_selector', label='drawn lines', tooltip='select here line for line property (e.g. width) changes'),
+                    Item('line_width', tooltip='average over number of lines in both directions.'),
+                    Item('line_interpolation_order'),
+                    label='Widgets'
+                ),
+                layout='tabbed',
             ),
         )
         return g
@@ -1263,7 +1358,11 @@ if __name__ == '__main__':
     # minimal_figure = MinimalFigure(figsize=(6 * 1.618, 6), facecolor='w', tight_layout=True)
     # minimal_figure.configure_traits(view='traits_view')
 
-    basic_figure = BasicFigure(figsize=(5 * 1.618, 5), facecolor='w', tight_layout=True)
-    basic_figure.configure_traits()
+    # basic_figure = BasicFigure(figsize=(5 * 1.618, 5), facecolor='w', tight_layout=True)
+    # basic_figure.configure_traits()
+
     # basic_figure.configure_traits(view='traits_multiple_axes_view')
     # basic_figure.configure_traits(view='traits_scroll_view')
+
+    minimal_figure = WidgetFigure(figsize=(6, 6), facecolor='w', tight_layout=True)
+    minimal_figure.configure_traits(view='traits_view')

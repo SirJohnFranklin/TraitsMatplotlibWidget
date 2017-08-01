@@ -216,7 +216,6 @@ class AnnotatedLine(HasTraits):
         self.drl = DraggableResizeableLine(line_handle)
         self.drl.connect()
 
-
     def disconnect(self):
         self.drl.disconnect()
 
@@ -233,7 +232,6 @@ class AnnotatedLine(HasTraits):
         self.pos_0 = np.array([x[0],y[0]])
         self.pos_1 = np.array([x[1],y[1]])
         self.annotext = self.axes.annotate(self.text, self.pos_1+(self.pos_0-self.pos_1)/2, color='w', weight='bold',fontsize=6, ha='center', va='center')
-
 
     @on_trait_change('drl.updateXY')
     def xyLineUpdated(self):

@@ -14,7 +14,8 @@ class MultipleAxesExample(HasTraits):
         fig = BasicFigure(tight_layout=True)
         fig.figure.add_subplot(211)
         fig.figure.add_subplot(212)
-        fig.get_axes()
+        axes = fig.get_axes()
+        axes[1].grid(True)
         return fig
 
     @on_trait_change('sin_range')
@@ -24,7 +25,7 @@ class MultipleAxesExample(HasTraits):
 
     @on_trait_change('data')
     def plot(self):
-        self.fig.plot(self.xvals, self.data, label='sin',ax=0)
+        self.fig.plot(self.xvals, self.data, label='sin', ax=0)
         self.fig.plot(self.xvals[0:-1], np.diff(self.data), label='derivative', ax=1)
 
     def traits_view(self):
