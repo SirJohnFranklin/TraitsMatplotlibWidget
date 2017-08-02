@@ -1081,7 +1081,7 @@ class WidgetFigure(BasicFigure):
 
     drawn_patches = List()
     drawn_patches_names = List()
-    patch_data = Array  # [patch no, 2D Arr]
+    patch_data = List  # [patch no, 2D Arr]
 
     drawn_lines = List()
     drawn_lines_names= List()
@@ -1089,7 +1089,7 @@ class WidgetFigure(BasicFigure):
 
     line_width = Range(0, 1000, 0, tooltip='average over number of lines in both directions.')
     line_interpolation_order = Range(0, 5, 1)
-    line_data = Array  # [line no, xvals, yvals]
+    line_data = List  # [line no, xvals, yvals]
 
     def _widget_list_default(self):
         w = list()
@@ -1133,8 +1133,6 @@ class WidgetFigure(BasicFigure):
             y_float = np.linspace(y[0], y[1], len_line)
             x, y = x_float.astype(np.int), y_float.astype(np.int)
 
-            x, y = x.astype(np.int), y.astype(np.int)
-
             data = []
             for i in range(-self.line_width, self.line_width + 1):
                 n1, n2 = self.get_normal(x[0], x[1], y[0], y[1])
@@ -1147,9 +1145,11 @@ class WidgetFigure(BasicFigure):
                 data.append(zi)
 
             line_cut_mean = np.mean(data, axis=0)
-            line_data.append([range(0, line_cut_mean.shape[0]), line_cut_mean])
+            xvals = np.arange(0, line_cut_mean.shape[0], 1)
+            line_data.append(np.array([xvals, line_cut_mean]))
 
-        self.line_data = np.array(line_data)
+
+        self.line_data = line_data
 
     @staticmethod
     def get_normal(x1, x2, y1, y2):
@@ -1259,7 +1259,7 @@ class WidgetFigure(BasicFigure):
             # data & extent
             data.append([self.img_data[int(y1):int(y2),int(x1):int(x2)], [int(x1), int(x2), int(y1), int(y2)]])
 
-        self.patch_data = np.array(data)
+        self.patch_data = data
 
     def _rectangle_selector(self):
         try:

@@ -34,13 +34,13 @@ class WidgetFigureExample(HasTraits):
     @on_trait_change('fig.line_data[]')
     def plt_line_cut(self):
         data = self.fig.line_data
-        self.line_fig.plot(data[0,0,:], data[0,1,:], label='data interp.')
+        for i, d in enumerate(data):
+            self.line_fig.plot(d[0,:], d[1,:], label='line no. ' + str(i))
 
     @on_trait_change('fig.patch_data[]')
     def calculate_picture_region_sum(self):
         zoomdata = self.fig.patch_data[0]
         self.line_fig.imshow(zoomdata[0], extent=zoomdata[1])
-
 
     def _data_default(self):
         x = np.linspace(-.3, 1., 500)
